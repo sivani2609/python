@@ -1,0 +1,62 @@
+// index.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Search</title>
+    <style>
+        #suggestions { border: 1px solid #ccc; max-width: 200px; }
+        .suggestion { padding: 5px; cursor: pointer; }
+        .suggestion:hover { background-color: #f0f0f0; }
+    </style>
+</head>
+<body>
+    <input type="text" id="search" placeholder="Search...">
+    <div id="suggestions"></div>
+    
+    <script>
+        document.getElementById('search').addEventListener('input', function() {
+            let query = this.value;
+            if (query.length < 1) {
+                document.getElementById('suggestions').innerHTML = '';
+                return;
+            }
+            
+            fetch(`/search?q=${query}`)
+                .then(response => response.json())
+                .then(data => {
+                    let suggestions = data.map(item => `<div class='suggestion'>${item}</div>`).join('');
+                    document.getElementById('suggestions').innerHTML = suggestions;
+                });
+        });
+    </script>
+</body>
+</html>
+
+// server.js
+const express = require('express');
+const sqlite3 = require('sqlite3').verbose();
+const app = express();
+const port = 3000;
+
+// Database setup
+const db = new sqlite3.Database(':memory:');
+db.serialize(() => {
+    db.run("CREATE TABLE search_terms (term TEXT)");
+    const stmt = db.prepare("INSERT INTO search_terms VALUES (?)");
+    ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango", "Orange", "Peach", "Pear", "Plum"]
+        .forEach(term => stmt.run(term));
+    stmt.finalize();
+});
+
+// API Endpoint
+app.get('/search', (req, res) => {
+    const query = req.query.q;
+    db.all("SELECT term FROM search_terms WHERE term LIKE ? LIMIT 5", [`${query}%`], (err, rows) => {
+        res.json(rows.map(row => row.term));
+    });
+});
+
+app.use(express.static('.'));
+app.listen(port, () => console.log(`Server running on http://localhost:${port}`));
